@@ -1,268 +1,238 @@
+"""MTBLANC-VCMM V9 — interface mobile météo alpine (Streamlit Cloud)."""
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 from zoneinfo import ZoneInfo
-import html
-import requests
-import pandas as pd
-import streamlit as st
+
 import folium
+import pandas as pd
+import requests
+import streamlit as st
 from streamlit_folium import st_folium
 
-st.set_page_config(page_title='MTBLANC-VCMM | Météo alpine', page_icon='🏔️', layout='wide')
-
-LOCATIONS = {
- 'Verbier': (46.096, 7.228, 1500, '4 Vallées'),
- 'Mont Fort': (46.081, 7.318, 3329, '4 Vallées'),
- 'Les Attelas': (46.103, 7.270, 2727, '4 Vallées'),
- 'La Tzoumaz': (46.145, 7.234, 1500, '4 Vallées'),
- 'Nendaz': (46.183, 7.294, 1400, '4 Vallées'),
- 'Veysonnaz': (46.196, 7.335, 1350, '4 Vallées'),
- 'Thyon 2000': (46.178, 7.388, 2000, '4 Vallées'),
- 'Bruson': (46.066, 7.216, 1100, '4 Vallées'),
- 'Le Châble': (46.080, 7.216, 820, '4 Vallées'),
- 'Martigny': (46.102, 7.073, 471, 'Corridor alpin'),
- 'Trient': (46.056, 6.995, 1300, 'Corridor alpin'),
- 'Vallorcine': (46.034, 6.933, 1260, 'Chamonix'),
- 'Le Tour': (46.003, 6.946, 1460, 'Chamonix'),
- 'Argentière': (45.982, 6.927, 1250, 'Chamonix'),
- 'Grands Montets': (45.956, 6.961, 3275, 'Chamonix'),
- 'Chamonix': (45.924, 6.869, 1035, 'Chamonix'),
- 'Brévent': (45.933, 6.838, 2525, 'Chamonix'),
- 'Aiguille du Midi': (45.879, 6.887, 3842, 'Chamonix'),
- 'Les Houches': (45.890, 6.799, 1000, 'Chamonix'),
- 'Saint-Gervais': (45.893, 6.712, 850, 'Megève'),
- 'Megève': (45.857, 6.617, 1110, 'Megève'),
- 'Mont d’Arbois': (45.865, 6.653, 1833, 'Megève'),
- 'Rochebrune': (45.835, 6.643, 1754, 'Megève'),
- 'Côte 2000': (45.829, 6.675, 2000, 'Megève'),
- 'Combloux': (45.897, 6.644, 960, 'Megève'),
- 'Les Contamines': (45.821, 6.728, 1164, 'Megève'),
- 'Praz-sur-Arly': (45.837, 6.573, 1030, 'Megève'),
- 'Courmayeur': (45.793, 6.969, 1224, 'Aoste'),
- 'Aoste': (45.737, 7.321, 583, 'Aoste'),
- 'Genève': (46.204, 6.143, 375, 'Léman'),
- 'Évian-les-Bains': (46.401, 6.591, 372, 'Léman'),
- 'Montreux': (46.431, 6.911, 390, 'Léman'),
+st.set_page_config(page_title="MTBLANC-VCMM | Météo alpine", page_icon="🏔️", layout="wide", initial_sidebar_state="collapsed")
+TZ = ZoneInfo("Europe/Zurich")
+POINTS = {
+    "Verbier": (46.096, 7.228, 1500, "4 Vallées"),
+    "Mont Fort": (46.081, 7.318, 3329, "4 Vallées"),
+    "Les Attelas": (46.103, 7.270, 2727, "4 Vallées"),
+    "La Tzoumaz": (46.145, 7.234, 1500, "4 Vallées"),
+    "Nendaz": (46.183, 7.294, 1400, "4 Vallées"),
+    "Veysonnaz": (46.196, 7.335, 1350, "4 Vallées"),
+    "Thyon 2000": (46.178, 7.388, 2000, "4 Vallées"),
+    "Bruson": (46.066, 7.216, 1100, "4 Vallées"),
+    "Le Châble": (46.080, 7.216, 820, "4 Vallées"),
+    "Martigny": (46.102, 7.073, 471, "Corridor"),
+    "Trient": (46.056, 6.995, 1300, "Corridor"),
+    "Vallorcine": (46.034, 6.933, 1260, "Chamonix"),
+    "Le Tour": (46.003, 6.946, 1460, "Chamonix"),
+    "Argentière": (45.982, 6.927, 1250, "Chamonix"),
+    "Grands Montets": (45.956, 6.961, 3275, "Chamonix"),
+    "Chamonix": (45.924, 6.869, 1035, "Chamonix"),
+    "Brévent": (45.933, 6.838, 2525, "Chamonix"),
+    "Aiguille du Midi": (45.879, 6.887, 3842, "Chamonix"),
+    "Les Houches": (45.890, 6.799, 1000, "Chamonix"),
+    "Saint-Gervais": (45.893, 6.712, 850, "Megève"),
+    "Megève": (45.857, 6.617, 1110, "Megève"),
+    "Mont d’Arbois": (45.865, 6.653, 1833, "Megève"),
+    "Rochebrune": (45.835, 6.643, 1754, "Megève"),
+    "Côte 2000": (45.829, 6.675, 2000, "Megève"),
+    "Combloux": (45.897, 6.644, 960, "Megève"),
+    "Les Contamines": (45.821, 6.728, 1164, "Megève"),
+    "Praz-sur-Arly": (45.837, 6.573, 1030, "Megève"),
+    "Courmayeur": (45.793, 6.969, 1224, "Aoste"),
+    "Aoste": (45.737, 7.321, 583, "Aoste"),
+    "Genève": (46.204, 6.143, 375, "Léman"),
+    "Évian-les-Bains": (46.401, 6.591, 372, "Léman"),
+    "Montreux": (46.431, 6.911, 390, "Léman"),
 }
 
 st.markdown("""<style>
-:root{--neon:#baff35;--red:#ff565e;--ink:#080b09;--panel:#171d19}
-.stApp,.main{background:#080b09!important;color:#fff!important}
-[data-testid="stSidebar"]{background:#151b17!important}
-[data-testid="stMetric"]{background:#171d19!important;border:2px solid #647266!important;padding:16px!important;border-radius:0!important}
-[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] *, [data-testid="stMetricValue"], [data-testid="stMetricValue"] *{color:#ffffff!important;opacity:1!important;-webkit-text-fill-color:#ffffff!important}
-[data-testid="stMetricLabel"]{font-weight:750!important}
-[data-testid="stMetricValue"]{font-weight:850!important}
-[data-testid="stMetricDelta"] *{color:#baff35!important}
-[data-testid="stMarkdownContainer"],.stApp p,.stApp label,.stApp h1,.stApp h2,.stApp h3{color:#f5f8f5}
-[data-testid="stCaptionContainer"] p{color:#cbd8cd!important}
-[data-testid="stVerticalBlockBorderWrapper"],div[data-testid="stExpander"],div[data-baseweb="select"],button,input,[data-testid="stTabs"] button{border-radius:0!important}
-.stButton>button{background:#baff35!important;color:#070907!important;border:0!important;font-weight:800!important}
-[data-baseweb="tab"]{color:#e8f1e8!important}
-[data-baseweb="tab"][aria-selected="true"]{color:#baff35!important}
-h1,h2,h3{letter-spacing:.025em}
-a{color:#baff35!important}
-.brand{border-left:6px solid #baff35;padding:15px 20px;background:#171d19;margin-bottom:15px}
-.brand h1{margin:0;color:white;font-size:clamp(1.6rem,5vw,2.5rem)}
-.brand b{color:#baff35}
-.kicker{font-size:.78rem;color:#baff35;font-weight:800;letter-spacing:.13em}
-.warning{border-left:5px solid #ff565e;padding:14px;background:#2c171a;color:white}
-.radar-note{border-left:4px solid #baff35;background:#172019;padding:12px;color:white}
-</style>""",unsafe_allow_html=True)
-st.markdown('<div class="brand"><div class="kicker">ALPINE WEATHER / MOUNTAIN SAFETY</div><h1>MT<b>BLANC</b>-VCMM</h1><div>VERBIER · 4 VALLÉES · CHAMONIX · MEGÈVE · CORRIDOR ALPIN</div></div>', unsafe_allow_html=True)
+:root{--bg:#080b09;--panel:#171d19;--edge:#526359;--lime:#c0ff45;--red:#ff5b64}
+html,body,[data-testid="stAppViewContainer"],.stApp{background:var(--bg)!important;color:#f7faf7!important}
+[data-testid="stHeader"]{background:var(--bg)!important}
+.block-container{padding-top:1.3rem!important;max-width:1120px!important;padding-left:1rem!important;padding-right:1rem!important}
+[data-testid="stSidebar"]{background:#171d19!important}
+.stApp p,.stApp label,.stApp h1,.stApp h2,.stApp h3,.stApp h4,.stApp li,.stApp small{color:#f7faf7!important}
+[data-testid="stCaptionContainer"] p{color:#d1dcd4!important}
+[data-testid="stMarkdownContainer"] a{color:var(--lime)!important}
+[data-testid="stMetric"]{border:1px solid #65756a!important;background:var(--panel)!important;padding:13px!important;border-radius:0!important}
+[data-testid="stMetricLabel"] *,[data-testid="stMetricValue"] *,[data-testid="stMetricLabel"],[data-testid="stMetricValue"]{color:white!important;-webkit-text-fill-color:white!important;opacity:1!important}
+[data-testid="stMetricValue"]{font-size:clamp(1.5rem,5vw,2.1rem)!important}
+button,[data-baseweb="select"],input,textarea,[data-testid="stAlert"],div[data-testid="stExpander"],div[data-testid="stDataFrame"],div[data-testid="stVerticalBlockBorderWrapper"]{border-radius:0!important}
+[data-testid="stAlert"] p,[data-testid="stAlert"] div{color:#142018!important}
+[data-testid="stAlert"]{background:#e6f0e8!important}
+[data-testid="stButton"] button[kind="primary"]{background:var(--lime)!important;color:#0b120c!important;font-weight:800!important;border:0!important}
+[data-testid="stButton"] button[kind="secondary"]{background:#202b23!important;color:white!important;border:1px solid #738476!important}
+[data-baseweb="select"]>div{background:#f7f9f7!important;color:#111!important}
+[data-baseweb="select"] span,[data-baseweb="select"] input{color:#111!important}
+[data-testid="stSlider"] p{color:white!important}
+[data-testid="stRadio"] label,[data-testid="stCheckbox"] label{color:white!important}
+.brand{border-left:6px solid var(--lime);background:#172019;padding:14px 17px;margin-bottom:12px}
+.brand .small{font-size:.72rem;letter-spacing:.12em;font-weight:800;color:var(--lime)}
+.brand .name{font-size:clamp(1.6rem,6vw,2.6rem);font-weight:900;line-height:1.2;color:white;margin:7px 0}
+.brand .name span{color:var(--lime)}
+.brand .sub{font-size:.82rem;color:#e4ece5}
+.section{border-left:4px solid var(--lime);padding-left:10px;margin:16px 0 8px;font-size:1.13rem;font-weight:850;color:white}
+.place{background:#171d19;border:1px solid #647668;padding:13px 15px;margin-bottom:10px;min-height:130px}
+.place .place-title{font-weight:850;font-size:1.05rem;color:#fff}
+.place .place-temp{font-weight:900;font-size:2rem;color:var(--lime);line-height:1.4}
+.place .place-info{font-size:.82rem;color:#e0e8e0}
+.place .place-time{font-size:.7rem;color:#cbd9cf}
+.info-panel{background:#18221a;border-left:4px solid var(--lime);padding:12px 14px;color:#f6fff6;margin:10px 0}
+.warn-panel{background:#30191c;border-left:4px solid var(--red);padding:12px 14px;color:white;margin:10px 0}
+[data-testid="stTabs"] button{color:#f7fff7!important;font-weight:700!important}
+[data-testid="stTabs"] [aria-selected="true"]{color:var(--lime)!important}
+@media(max-width:650px){.block-container{padding-left:.75rem!important;padding-right:.75rem!important}.brand{padding:12px}.place{min-height:0}.stApp h1{font-size:1.5rem}}
+</style>""", unsafe_allow_html=True)
 
-@st.cache_data(ttl=600, show_spinner=False)
-def forecast(lat, lon, elevation, model):
-    params = {'latitude':lat,'longitude':lon,'elevation':elevation,
-              'hourly':'temperature_2m,relative_humidity_2m,precipitation,snowfall,snow_depth,wind_speed_10m,wind_gusts_10m,wind_direction_10m,freezing_level_height,weather_code',
-              'current':'temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_gusts_10m,weather_code',
-              'timezone':'Europe/Zurich','forecast_days':3}
-    if model != 'Automatique': params['models']=model
-    r=requests.get('https://api.open-meteo.com/v1/forecast',params=params,timeout=18)
-    r.raise_for_status()
-    return r.json()
+@st.cache_data(ttl=60, show_spinner=False)
+def weather(name, altitude=None):
+    lat,lon,natural,_ = POINTS[name]
+    params={"latitude":lat,"longitude":lon,"elevation":natural if altitude is None else altitude,
+            "current":"temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_gusts_10m,weather_code",
+            "hourly":"temperature_2m,precipitation,snowfall,wind_speed_10m,wind_gusts_10m,freezing_level_height",
+            "forecast_days":3,"timezone":"Europe/Zurich"}
+    resp=requests.get("https://api.open-meteo.com/v1/forecast",params=params,timeout=12)
+    resp.raise_for_status()
+    return resp.json()
 
-@st.cache_data(ttl=300, show_spinner=False)
-def radar_frames():
-    r=requests.get('https://api.rainviewer.com/public/weather-maps.json',timeout=10)
-    r.raise_for_status()
-    d=r.json()
-    frames=d.get('radar',{}).get('past',[])
-    return d.get('host','https://tilecache.rainviewer.com'),frames
+@st.cache_data(ttl=60, show_spinner=False)
+def radar():
+    resp=requests.get("https://api.rainviewer.com/public/weather-maps.json",timeout=9)
+    resp.raise_for_status()
+    data=resp.json()
+    return data.get("host","https://tilecache.rainviewer.com"), data.get("radar",{}).get("past",[])
 
+def fmt(value, unit="", decimals=0):
+    if value is None:return "—"
+    try:return f"{float(value):.{decimals}f}{unit}"
+    except (TypeError,ValueError):return "—"
 
-# Chaque source est interrogée séparément : aucun chiffre n'est inventé en cas d'échec.
-MODELS_COMPARE = {
-    'MétéoSuisse ICON-CH1 (~1 km)': 'meteoswiss_icon_ch1',
-    'MétéoSuisse ICON-CH2 (~2 km)': 'meteoswiss_icon_ch2',
-    'Météo-France AROME HD (~1,3 km)': 'meteofrance_arome_france_hd',
-    'ECMWF IFS (~9 km)': 'ecmwf_ifs025',
-}
+def time_label(s):
+    if not s:return "Heure inconnue"
+    try:return dt.datetime.fromisoformat(s).strftime("%d/%m %H:%M")
+    except ValueError:return str(s)
 
-@st.cache_data(ttl=900, show_spinner=False)
-def model_comparison(lat, lon, altitude):
-    import concurrent.futures
-    def fetch(item):
-        label, model_id = item
-        params = {
-            'latitude': lat, 'longitude': lon, 'elevation': altitude,
-            'models': model_id, 'timezone': 'Europe/Zurich', 'forecast_days': 2,
-            'hourly': 'temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m',
-        }
-        try:
-            r = requests.get('https://api.open-meteo.com/v1/forecast', params=params, timeout=16)
-            r.raise_for_status()
-            d = r.json()
-            h = pd.DataFrame(d['hourly'])
-            if h.empty or 'time' not in h:
-                raise ValueError('Réponse horaire vide')
-            h['time'] = pd.to_datetime(h['time'])
-            h = h.set_index('time')
-            return label, h, None
-        except (requests.RequestException, ValueError, KeyError) as exc:
-            return label, None, str(exc)[:160]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-        return list(pool.map(fetch, MODELS_COMPARE.items()))
+def point_card(name, d):
+    if not d:
+        return f'<div class="place"><div class="place-title">{name}</div><div class="place-info">Données indisponibles</div></div>'
+    c=d.get("current",{})
+    return (f'<div class="place"><div class="place-title">{name.upper()}</div>'
+            f'<div class="place-temp">{fmt(c.get("temperature_2m")," °C",1)}</div>'
+            f'<div class="place-info">Vent {fmt(c.get("wind_speed_10m")," km/h")} · Rafales {fmt(c.get("wind_gusts_10m")," km/h")}</div>'
+            f'<div class="place-time">Prévision modèle · {time_label(c.get("time"))}</div></div>')
 
-with st.sidebar:
-    st.header('PARAMÈTRES')
-    region=st.selectbox('Secteur', ['4 Vallées','Corridor alpin','Chamonix','Megève','Aoste','Léman','Tous'])
-    available=[k for k,v in LOCATIONS.items() if region=='Tous' or v[3]==region]
-    place=st.selectbox('Point météo',available)
-    lat,lon,natural,area=LOCATIONS[place]
-    st.caption(f'Altitude indicative du lieu : {natural} m')
-    use_natural=st.checkbox('Altitude du lieu (automatique)',value=True)
-    altitude=st.slider('Altitude cible (m)',500,4000,max(500,min(4000,round(natural/50)*50)),50,disabled=use_natural)
-    target=natural if use_natural else altitude
-    model_label=st.selectbox('Modèle météo', ['Automatique','ICON Suisse CH1','ICON Suisse CH2','AROME France HD','ICON Europe','AROME France'],help='La disponibilité dépend du fournisseur et de la zone.')
-    model={'Automatique':'Automatique','ICON Suisse CH1':'meteoswiss_icon_ch1','ICON Suisse CH2':'meteoswiss_icon_ch2','AROME France HD':'meteofrance_arome_france_hd','ICON Europe':'icon_eu','AROME France':'meteofrance_arome_france'}[model_label]
-    radar_on=st.checkbox('Radar des précipitations (RainViewer)',value=True)
-    st.caption('Les coordonnées des points sont indicatives. Les données sont des prévisions de modèle, pas des mesures sur piste.')
+st.markdown('<div class="brand"><div class="small">MÉTÉO ALPINE / TERRAIN / SÉCURITÉ</div><div class="name">MT<span>BLANC</span>-VCMM</div><div class="sub">VERBIER · 4 VALLÉES · CHAMONIX · MEGÈVE</div></div>',unsafe_allow_html=True)
 
-st.markdown(f'### {place.upper()}  ·  {target:,} M'.replace(',', ' '))
-try:
-    data=forecast(lat,lon,target,model)
-    current=data.get('current',{})
-    cols=st.columns(4)
-    for col,label,key,unit in zip(cols,['TEMPÉRATURE','VENT 10 M','RAFALES','PRÉCIPITATIONS'],['temperature_2m','wind_speed_10m','wind_gusts_10m','precipitation'],['°C','km/h','km/h','mm']):
-        val=current.get(key)
-        col.metric(label, f'{val} {unit}' if val is not None else '—')
-    st.caption(f"Source : Open-Meteo · Modèle demandé : {model_label} · Altitude modèle renvoyée : {data.get('elevation','?')} m · Actualisation des données : {current.get('time','non disponible')} (heure locale)")
-except Exception as e:
-    data=None
-    st.error(f'Prévisions indisponibles pour cette combinaison de paramètres : {e}. Essayez « Automatique ».')
+page=st.radio("Navigation",["Accueil","Carte & radar","Détail météo","Terrain & secours","Webcams"],horizontal=True,label_visibility="collapsed")
 
-tab_map,tab_compare,tab_hour,tab_webcams,tab_safety=st.tabs(['CARTE + RADAR','COMPARAISON MODÈLES','PRÉVISIONS 72 H','WEBCAMS','SÉCURITÉ MONTAGNE'])
-with tab_map:
-    st.markdown('#### RADAR INTERACTIF — OBSERVATIONS')
-    st.markdown('<div class="radar-note"><b>Zoom et déplacement conservés.</b> Choisis une image radar dans la chronologie. Les images RainViewer couvrent généralement une courte période récente : <b>48 h d’archives et les prévisions radar ne sont pas disponibles dans cette source gratuite</b>. La prévision horaire du modèle est présentée séparément plus bas.</div>',unsafe_allow_html=True)
+@st.fragment(run_every="60s")
+def overview():
+    st.markdown('<div class="section">LES 3 SECTEURS — DERNIÈRE PRÉVISION DISPONIBLE</div>',unsafe_allow_html=True)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures={name:pool.submit(weather,name) for name in ["Verbier","Chamonix","Megève"]}
+        results={}
+        for name,f in futures.items():
+            try:results[name]=f.result()
+            except Exception:results[name]=None
+    cols=st.columns(3)
+    for col,name in zip(cols,["Verbier","Chamonix","Megève"]):
+        with col:st.markdown(point_card(name,results[name]),unsafe_allow_html=True)
+    st.caption("Contrôle automatique toutes les 60 s. Les heures affichées sont celles des prévisions du fournisseur, pas des mesures sur piste.")
+
+@st.fragment(run_every="60s")
+def details(name, altitude):
+    try:d=weather(name,altitude)
+    except Exception as exc:
+        st.error(f"Données indisponibles : {exc}")
+        return
+    c=d.get("current",{})
+    st.markdown(f'<div class="section">{name.upper()} · {altitude} M</div>',unsafe_allow_html=True)
+    cols=st.columns(2)
+    for col,label,key,unit in [(cols[0],"Température","temperature_2m"," °C"),(cols[1],"Rafales","wind_gusts_10m"," km/h")]:
+        col.metric(label,fmt(c.get(key),unit,1))
+    cols2=st.columns(2)
+    cols2[0].metric("Vent à 10 m",fmt(c.get("wind_speed_10m")," km/h",1))
+    cols2[1].metric("Précipitations actuelles (modèle)",fmt(c.get("precipitation")," mm",1))
+    st.caption(f"Source : Open-Meteo · Heure de validité : {time_label(c.get('time'))} · Altitude modèle : {d.get('elevation','—')} m")
+    st.markdown('<div class="section">PROCHAINES 12 HEURES</div>',unsafe_allow_html=True)
+    h=pd.DataFrame(d.get("hourly",{}))
+    if not h.empty:
+        h["time"]=pd.to_datetime(h["time"])
+        now=pd.Timestamp.now(tz=TZ).tz_localize(None)
+        h=h[h["time"]>=now.floor("h")].head(12)
+        cols={"time":"Heure","temperature_2m":"Temp. °C","precipitation":"Précip. mm","snowfall":"Neige cm","wind_gusts_10m":"Rafales km/h","freezing_level_height":"Iso 0 °C m"}
+        st.dataframe(h[list(cols)].rename(columns=cols).assign(Heure=lambda x:x.Heure.dt.strftime("%d/%m %Hh")),hide_index=True,use_container_width=True,height=320)
+    st.caption("Les altitudes par pas de 50 m sont des ajustements de modèle, pas des observations tous les 50 m.")
+
+if page=="Accueil":
+    overview()
+    st.markdown('<div class="section">ACCÈS RAPIDE</div>',unsafe_allow_html=True)
+    st.markdown('<div class="info-panel">Choisis « Détail météo » pour consulter une piste ou un sommet et régler son altitude. « Carte & radar » affiche les précipitations observées sur la région.</div>',unsafe_allow_html=True)
+    st.markdown('<div class="section">SECTEURS COUVERTS</div>',unsafe_allow_html=True)
+    st.write("4 Vallées · Chamonix · Megève · corridor Martigny–Trient–Vallorcine · Aoste · Genève et Léman")
+    st.markdown('<div class="warn-panel">Pour les décisions de sécurité en montagne, consulte toujours les observations de terrain et les bulletins officiels. Cette application n’est pas un outil de dispatch ou d’alerte certifié.</div>',unsafe_allow_html=True)
+
+elif page=="Détail météo":
+    groups=["4 Vallées","Chamonix","Megève","Corridor","Aoste","Léman"]
+    group=st.selectbox("Secteur",groups)
+    names=[n for n,p in POINTS.items() if p[3]==group]
+    place=st.selectbox("Station / sommet / village",names)
+    natural=POINTS[place][2]
+    natural_mode=st.toggle("Utiliser l'altitude du lieu",value=True)
+    altitude=natural if natural_mode else st.slider("Altitude demandée (pas de 50 m)",500,4000,min(4000,max(500,round(natural/50)*50)),50)
+    details(place,altitude)
+
+elif page=="Carte & radar":
+    st.markdown('<div class="section">CARTE INTERACTIVE</div>',unsafe_allow_html=True)
+    st.markdown('<div class="info-panel">Déplace la carte avec le doigt et zoome avec deux doigts. Le radar peut être activé ou désactivé. La chronologie concerne les observations radar disponibles, pas des prévisions futures.</div>',unsafe_allow_html=True)
+    area=st.selectbox("Centrer la carte sur",["Tout le corridor","Verbier / 4 Vallées","Chamonix","Megève","Léman"])
+    centers={"Tout le corridor":([46.01,6.95],9),"Verbier / 4 Vallées":([46.13,7.26],11),"Chamonix":([45.94,6.87],11),"Megève":([45.86,6.65],11),"Léman":([46.29,6.47],9)}
+    radar_on=st.toggle("Afficher le radar des précipitations",value=True)
     host,frames=None,[]
     if radar_on:
-        try:
-            host,frames=radar_frames()
-        except requests.RequestException:
-            st.warning('Radar RainViewer temporairement indisponible. La carte reste utilisable.')
+        try:host,frames=radar()
+        except Exception:st.warning("Radar temporairement indisponible. La carte reste utilisable.")
+    frame=None
     if frames:
-        times=[dt.datetime.fromtimestamp(f['time'],tz=ZoneInfo('Europe/Zurich')).strftime('%d/%m %H:%M') for f in frames]
-        selected_index=st.slider('Historique radar disponible · heure suisse',min_value=0,max_value=len(frames)-1,value=len(frames)-1,format='%d',help='Déplace le curseur pour consulter les images radar archivées par RainViewer.')
-        st.caption(f'Image sélectionnée : {times[selected_index]} · {len(frames)} images disponibles, du {times[0]} au {times[-1]} (heure suisse).')
-    else:
-        selected_index=None
-        if radar_on:st.info('Aucune image radar disponible pour le moment.')
-    if 'map_view' not in st.session_state:
-        st.session_state.map_view={'center':{'lat':46.01,'lng':6.94},'zoom':9}
-    view=st.session_state.map_view
-    m=folium.Map(location=[view['center']['lat'],view['center']['lng']],zoom_start=view['zoom'],tiles=None,control_scale=True,zoom_control=True,prefer_canvas=True)
-    folium.TileLayer('OpenStreetMap',name='Plan',control=True).add_to(m)
-    folium.TileLayer('OpenTopoMap',name='Relief topographique',control=True,show=True).add_to(m)
-    for name,(la,lo,el,zone) in LOCATIONS.items():
-        if region!='Tous' and zone!=region:continue
-        folium.CircleMarker([la,lo],radius=7 if name==place else 4,color='#baff35' if name==place else '#ff565e',weight=2,fill=True,fill_opacity=.95,
-                            popup=folium.Popup(f'<b>{html.escape(name)}</b><br>{el} m · {html.escape(zone)}',max_width=240),tooltip=name).add_to(m)
-    if radar_on and selected_index is not None:
-        frame=frames[selected_index]
-        tile=f"{host}{frame['path']}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
-        folium.TileLayer(tiles=tile,attr='RainViewer',name='Radar · image sélectionnée',overlay=True,control=True,show=True,opacity=.75,max_zoom=19,max_native_zoom=7).add_to(m)
-    folium.LayerControl(collapsed=False).add_to(m)
-    result=st_folium(m,height=560,use_container_width=True,key='main_radar_map',returned_objects=['center','zoom'])
-    if result and result.get('center') and result.get('zoom') is not None:
-        st.session_state.map_view={'center':result['center'],'zoom':result['zoom']}
-    st.caption('La carte peut être agrandie et déplacée. À fort zoom, les pixels du radar deviennent plus gros : la résolution des mesures ne s’améliore pas. Si les tuiles ne chargent pas, désactive puis réactive le radar.')
-    st.markdown('#### PRÉVISIONS DE PRÉCIPITATIONS — MODÈLE MÉTÉO')
-    st.caption('Ce graphique représente les prévisions Open-Meteo au point et à l’altitude choisis, et non une animation de radar. Les données ne décrivent pas précisément chaque versant.')
-    if data and data.get('hourly'):
-        ph=pd.DataFrame(data['hourly'])
-        ph['time']=pd.to_datetime(ph['time'])
-        ph=ph[['time','precipitation','snowfall']].rename(columns={'time':'Heure','precipitation':'Pluie / précipitations (mm)','snowfall':'Neige (cm)'})
-        st.line_chart(ph.set_index('Heure'),height=220)
-        st.dataframe(ph,hide_index=True,use_container_width=True)
-    else:
-        st.info('Prévisions horaires indisponibles actuellement.')
-with tab_compare:
-    st.markdown('#### COMPARATEUR MULTIMODÈLE — VERBIER / CHAMONIX / MEGÈVE')
-    st.info('Les modèles sont comparés pour le même point et la même altitude demandée. Le pas de 50 m est un ajustement vertical du modèle, et non une mesure à cette résolution. Les modèles peuvent partager des biais.')
-    with st.spinner('Interrogation de MétéoSuisse, Météo-France et ECMWF…'):
-        comparisons = model_comparison(lat, lon, target)
-    valid = {label: frame for label, frame, error in comparisons if frame is not None}
-    failed = [(label, error) for label, frame, error in comparisons if frame is None]
-    if failed:
-        st.warning('Sources indisponibles ou hors couverture : ' + '; '.join(label for label, _ in failed) + '. Elles ne sont pas incluses dans les statistiques.')
-        with st.expander('Détails des erreurs de récupération'):
-            for label, error in failed:
-                st.write(f'{label} : {error}')
-    if valid:
-        variable = st.selectbox('Paramètre à comparer', [
-            'Température (°C)', 'Précipitations (mm/h)', 'Vent à 10 m (km/h)', 'Rafales (km/h)'])
-        key = {'Température (°C)': 'temperature_2m', 'Précipitations (mm/h)': 'precipitation',
-               'Vent à 10 m (km/h)': 'wind_speed_10m', 'Rafales (km/h)': 'wind_gusts_10m'}[variable]
-        joined = pd.concat({name: df[key] for name, df in valid.items() if key in df}, axis=1).sort_index()
-        now = pd.Timestamp.now(tz='Europe/Zurich').tz_localize(None)
-        joined = joined.loc[joined.index >= now.floor('h')].head(36)
-        if not joined.empty:
-            st.line_chart(joined, height=310)
-            summary = pd.DataFrame(index=joined.index)
-            summary['Médiane des modèles'] = joined.median(axis=1)
-            summary['Minimum des modèles'] = joined.min(axis=1)
-            summary['Maximum des modèles'] = joined.max(axis=1)
-            summary['Écart max–min'] = summary['Maximum des modèles'] - summary['Minimum des modèles']
-            st.markdown('**Fourchette intermodèle (prochaines 36 heures)**')
-            st.dataframe(summary.round(1), use_container_width=True)
-            st.download_button('Télécharger la comparaison CSV', joined.to_csv().encode('utf-8-sig'),
-                               file_name='mtblanc_vcmm_comparaison_modeles.csv', mime='text/csv')
-            st.caption('La médiane est un indicateur de comparaison, pas une prévision officiellement validée. Un faible écart entre modèles ne garantit pas la justesse, notamment en terrain complexe.')
-        else:
-            st.info('Aucune heure commune disponible pour le moment.')
-    else:
-        st.error('Aucun modèle n’a répondu. Réessayez plus tard ou changez de point.')
-    st.markdown('**Sources :** [MétéoSuisse](https://www.meteosuisse.admin.ch/) · [Météo-France](https://meteofrance.com/) · [ECMWF](https://www.ecmwf.int/) · [Open-Meteo](https://open-meteo.com/)')
-    st.caption('Pour les décisions opérationnelles, vérifier les mesures sur site, les alertes et les bulletins officiels. Les prévisions n’assurent pas la sécurité d’un itinéraire.')
+        idx=st.slider("Historique radar disponible",0,len(frames)-1,len(frames)-1)
+        frame=frames[idx]
+        stamp=dt.datetime.fromtimestamp(frame["time"],TZ)
+        st.caption(f"Image radar : {stamp:%d/%m/%Y %H:%M} · {len(frames)} images accessibles. Historique de 48 h non garanti.")
+    elif radar_on:st.caption("Aucune image radar actuellement disponible.")
+    loc,zoom=centers[area]
+    m=folium.Map(location=loc,zoom_start=zoom,tiles="OpenStreetMap",control_scale=True,zoom_control=True)
+    for name,(lat,lon,elev,sector) in POINTS.items():
+        folium.CircleMarker([lat,lon],radius=5,color="#121b12",weight=2,fill=True,fill_color="#baff35",fill_opacity=1,tooltip=f"{name} · {elev} m",popup=f"{name} · {elev} m").add_to(m)
+    if frame:
+        # Native radar resolution is limited; Leaflet can upscale tiles on zoom.
+        tiles=f"{host}{frame['path']}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+        folium.TileLayer(tiles=tiles,attr="RainViewer",name="Radar",overlay=True,control=False,opacity=.65,max_zoom=19,max_native_zoom=7).add_to(m)
+    st_folium(m,height=480,use_container_width=True,key=f"map_{area}",returned_objects=[])
+    st.caption("Source radar : RainViewer. Les images sont mises à disposition avec un décalage possible ; les tuiles ne deviennent pas plus précises en zoomant.")
+    st.markdown("**Prévisions de pluie et neige :** consulte « Détail météo » pour le point choisi. Les prévisions ne sont pas des images radar.")
 
-with tab_hour:
-    if data and 'hourly' in data:
-        h=pd.DataFrame(data['hourly'])
-        h['time']=pd.to_datetime(h['time'])
-        h=h.rename(columns={'time':'Heure','temperature_2m':'Température °C','precipitation':'Précipitations mm','snowfall':'Neige cm','snow_depth':'Hauteur neige m','wind_speed_10m':'Vent km/h','wind_gusts_10m':'Rafales km/h','freezing_level_height':'Isotherme 0 °C m','relative_humidity_2m':'Humidité %'})
-        st.line_chart(h.set_index('Heure')[['Température °C']],height=230)
-        st.line_chart(h.set_index('Heure')[['Vent km/h','Rafales km/h']],height=230)
-        st.dataframe(h[['Heure','Température °C','Précipitations mm','Neige cm','Vent km/h','Rafales km/h','Isotherme 0 °C m','Humidité %']],hide_index=True,use_container_width=True)
-        st.download_button('Télécharger les prévisions CSV',h.to_csv(index=False).encode('utf-8-sig'),file_name=f"mtblanc_vcmm_{place.lower().replace(' ','_')}.csv",mime='text/csv')
-    else:st.info('Aucune donnée horaire chargée.')
-with tab_webcams:
-    st.info('Annuaire de liens externes vers des webcams : les images en direct ne sont pas intégrées ni vérifiées automatiquement.')
-    for title,url in [
-        ('Verbier / 4 Vallées','https://verbier4vallees.ch/'),
-        ('Chamonix Mont-Blanc','https://www.chamonix.com/'),
-        ('Megève','https://www.megeve-tourisme.fr/'),
-        ('Évasion Mont-Blanc','https://www.evasionmontblanc.com/'),
-        ('Courmayeur','https://www.courmayeurmontblanc.it/'),
-        ('MétéoSuisse','https://www.meteosuisse.admin.ch/')]:
-        st.markdown(f'**{title}** — [Site officiel / chercher « webcams »]({url})')
-with tab_safety:
-    st.markdown('<div class="warning"><b>IMPORTANT</b> — Outil de préparation, pas un dispositif d’alerte, de dispatch ou de décision de secours certifié. Vérifiez toujours les bulletins officiels et les observations terrain.</div>',unsafe_allow_html=True)
-    st.markdown('**Bulletins officiels** : [SLF Suisse](https://www.slf.ch/fr/bulletin-davalanches-et-situation-nivologique/) · [Météo-France montagne](https://meteofrance.com/meteo-montagne) · [MétéoSuisse](https://www.meteosuisse.admin.ch/) · [Météo région Vallée d’Aoste](https://cf.regione.vda.it/)')
-    st.markdown('**Briefing pisteurs / hors-piste**')
-    for item in ['Dernier bulletin d’avalanche consulté','Vent et rafales observés sur les crêtes','Évolution de l’isotherme 0 °C','Neige récente et transport par le vent','Visibilité et couverture nuageuse','État des remontées et fermetures officielles','Communication et moyens de secours vérifiés']:
-        st.checkbox(item,key='check_'+item)
-    st.caption('En cas d’urgence, contactez les services de secours locaux. Ne prenez pas de décision de sécurité sur la seule base de cette application.')
+elif page=="Terrain & secours":
+    st.markdown('<div class="section">BRIEFING TERRAIN — COMMENT L’UTILISER</div>',unsafe_allow_html=True)
+    st.markdown('<div class="warn-panel">Outil de préparation uniquement. Il ne déclenche aucune intervention et ne remplace ni les bulletins officiels, ni les décisions des responsables de secours.</div>',unsafe_allow_html=True)
+    st.write("**1.** Consulte le bulletin d’avalanche du secteur. **2.** Vérifie les observations de vent, neige et visibilité. **3.** Contrôle les remontées, les accès et les moyens de communication. **4.** Valide la décision avec ton organisation.")
+    for label,url in [
+        ("Avalanches Suisse — SLF","https://www.slf.ch/fr/bulletin-davalanches-et-situation-nivologique/"),
+        ("Météo-France — Montagne","https://meteofrance.com/meteo-montagne"),
+        ("MétéoSuisse","https://www.meteosuisse.admin.ch/"),
+        ("Bulletins Val d'Aoste","https://cf.regione.vda.it/")]:
+        st.link_button(label,url,use_container_width=True)
+    st.markdown('<div class="section">CHECKLIST DE BRIEFING (LOCALE À CETTE SESSION)</div>',unsafe_allow_html=True)
+    for x in ["Bulletin officiel lu et daté","Observations terrain comparées aux modèles","Vent en crête et transport de neige vérifiés","Visibilité et météo à l’altitude prévue vérifiées","Accès, communications et protocole de secours confirmés"]:
+        st.checkbox(x,key="brief_"+x)
+    st.caption("Ces cases ne sont ni transmises à un centre de secours ni enregistrées comme compte rendu officiel.")
+
+elif page=="Webcams":
+    st.markdown('<div class="section">WEBCAMS — SOURCES OFFICIELLES</div>',unsafe_allow_html=True)
+    st.write("Accès aux pages des stations. La disponibilité et l'heure des images dépendent de leurs exploitants.")
+    links=[("Verbier 4 Vallées","https://verbier4vallees.ch/"),("Chamonix","https://www.chamonix.com/"),("Megève","https://www.megeve-tourisme.fr/"),("Les Houches","https://www.chamonix.com/"),("Nendaz","https://www.nendaz.ch/"),("Saint-Gervais","https://www.saintgervais.com/")]
+    for label,url in links:st.link_button(f"Webcams / site officiel — {label}",url,use_container_width=True)
+    st.caption("Ces liens mènent aux sites des destinations ; certaines webcams nécessitent une navigation supplémentaire.")
 
 st.divider()
-st.caption('MTBLANC-VCMM · Version Streamlit V8 · Open-Meteo / OpenTopoMap / RainViewer. L’ajustement d’altitude par 50 m n’équivaut pas à une résolution réelle de 50 m. Les observations, modèles et radars peuvent diverger.')
+st.caption("MTBLANC-VCMM V9 · Vérification automatique des données toutes les 60 s sur l’accueil et le détail météo. Aucune garantie de publication minute par minute des sources. Pour les secours, privilégier les organismes officiels.")

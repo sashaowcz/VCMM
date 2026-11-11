@@ -1,15 +1,22 @@
-# MTBLANC-VCMM V8 — Streamlit
+# MTBLANC-VCMM V9 — Streamlit
 
-Application météo alpine pour Verbier, 4 Vallées, Chamonix, Megève et corridor.
+Application météo alpine, refonte mobile.
 
-## Déployer sur Streamlit Community Cloud
-1. Décompressez le ZIP.
-2. Dans votre dépôt GitHub existant, remplacez `app.py`, `requirements.txt` et `.streamlit/config.toml` par les fichiers du projet. Conservez leur arborescence.
-3. Validez avec **Commit changes**.
-4. Streamlit Community Cloud redéploie l’application automatiquement. Si nécessaire, ouvrez **Manage app → Reboot**.
+## Installation sur GitHub / Streamlit Cloud
+1. Décompresser le ZIP.
+2. Dans le dépôt GitHub déjà connecté à Streamlit, remplacer `app.py`, `requirements.txt` et `.streamlit/config.toml` par les fichiers du dossier.
+3. Valider les changements avec **Commit changes**.
+4. Attendre le redéploiement sur Streamlit Cloud. En cas d'erreur, ouvrir **Manage app > Logs**.
 
-## Nouveauté V8
-Onglet **COMPARAISON MODÈLES** : récupération indépendante des modèles ICON-CH1, ICON-CH2, AROME HD et ECMWF via Open-Meteo, graphiques et médiane/fourchette de prévision. Les modèles indisponibles sont signalés, jamais remplacés par des valeurs inventées.
+Pour un nouveau déploiement : https://share.streamlit.io/ ; choisir le dépôt GitHub, branche `main`, fichier principal `app.py`.
 
-## Précautions
-Les valeurs tous les 50 m sont des estimations ajustées à l'altitude, pas des observations tous les 50 m. Les radars RainViewer ne garantissent pas 48 h d'historique. Les données ne remplacent pas les bulletins officiels ni l'expertise terrain. Vérifiez les licences et conditions d'utilisation des fournisseurs pour un usage commercial.
+## Sources et limites
+- Prévisions : Open-Meteo, API forecast. Rafraîchissement du cache et de l'interface toutes les 60 secondes pour les sections principales ; cela ne garantit pas des données produites toutes les minutes.
+- Radar : RainViewer, historique limité à ce que fournit l'API gratuite. Ce n'est pas une archive garantie de 48 h et ce ne sont pas des prévisions radar futures.
+- Altitude par 50 m : ajustement de modèle, pas une observation mesurée à cette précision.
+- Carte : OpenStreetMap / Leaflet via Folium. La couche radar a une résolution native limitée.
+- Sécurité : application non certifiée pour le dispatch, l'alerte ou les décisions de secours.
+
+## Démarrage local
+`pip install -r requirements.txt`
+`streamlit run app.py`

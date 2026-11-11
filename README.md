@@ -1,22 +1,15 @@
-# MTBLANC-VCMM — Streamlit V6
+# MTBLANC-VCMM V8 — Streamlit
 
-Météo montagne pour Verbier, les 4 Vallées, Chamonix, Megève et leurs environs. Application d'information et de préparation, **pas un outil de secours certifié**.
+Application météo alpine pour Verbier, 4 Vallées, Chamonix, Megève et corridor.
 
-## Déploiement
-1. Créer un dépôt GitHub public `MTBLANC-VCMM`.
-2. Envoyer `app.py`, `requirements.txt` et le dossier `.streamlit` à la racine du dépôt.
-3. Ouvrir https://share.streamlit.io, se connecter avec GitHub et choisir **Create app**.
-4. Sélectionner le dépôt, la branche `main` et le fichier `app.py`, puis **Deploy**.
+## Déployer sur Streamlit Community Cloud
+1. Décompressez le ZIP.
+2. Dans votre dépôt GitHub existant, remplacez `app.py`, `requirements.txt` et `.streamlit/config.toml` par les fichiers du projet. Conservez leur arborescence.
+3. Validez avec **Commit changes**.
+4. Streamlit Community Cloud redéploie l’application automatiquement. Si nécessaire, ouvrez **Manage app → Reboot**.
 
-## Exécution locale
-```bash
-python -m pip install -r requirements.txt
-streamlit run app.py
-```
+## Nouveauté V8
+Onglet **COMPARAISON MODÈLES** : récupération indépendante des modèles ICON-CH1, ICON-CH2, AROME HD et ECMWF via Open-Meteo, graphiques et médiane/fourchette de prévision. Les modèles indisponibles sont signalés, jamais remplacés par des valeurs inventées.
 
-## Sources et limites
-- Prévisions Open-Meteo, altitude demandée à l'API. Résolution réelle du modèle beaucoup plus grossière que 50 m.
-- Fond OpenTopoMap et Leaflet/Folium.
-- Radar RainViewer : dernière image passée disponible, sous réserve de disponibilité.
-- Webcams : liens vers les sites des stations, pas des flux vérifiés.
-- Pas de système de dispatch, de suivi de personnes ou d'alertes certifiées.
+## Précautions
+Les valeurs tous les 50 m sont des estimations ajustées à l'altitude, pas des observations tous les 50 m. Les radars RainViewer ne garantissent pas 48 h d'historique. Les données ne remplacent pas les bulletins officiels ni l'expertise terrain. Vérifiez les licences et conditions d'utilisation des fournisseurs pour un usage commercial.

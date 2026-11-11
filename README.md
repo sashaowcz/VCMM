@@ -26,3 +26,10 @@ Application Streamlit pour consulter les prévisions de neige, de pluie, l'altit
 - Les bulletins d'avalanches officiels restent indispensables.
 
 Sources : https://open-meteo.com/en/docs ; https://opendatadocs.meteoswiss.ch/
+
+
+## V11 : Pisteurs & secours
+
+L’onglet **Pisteurs & secours** affiche un briefing météorologique par secteur, point, altitude (pas de 50 m) et fenêtre de 6 à 48 h : rafales, neige, pluie, température, isotherme et tableau horaire exportable. Les messages de vigilance reposent sur des seuils indicatifs non officiels et ne sont pas des alertes de sécurité. Des liens directs mènent aux bulletins officiels.
+
+Déploiement : remplacer `app.py`, `requirements.txt` et `.streamlit/config.toml` dans le dépôt GitHub existant. Streamlit Cloud redéploie après le commit.

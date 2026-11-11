@@ -1,4 +1,4 @@
-"""MTBLANC-VCMM V10 — tableau de bord freeride, Streamlit Cloud."""
+"""MTBLANC-VCMM V11 — freeride et météo opérationnelle, Streamlit Cloud."""
 import datetime as dt
 import html
 from concurrent.futures import ThreadPoolExecutor
@@ -112,7 +112,7 @@ def radar_frames():
     return j.get('host','https://tilecache.rainviewer.com'),frames
 
 st.markdown('<div class="brand"><small>FREERIDE / SNOW FORECAST / ALPES</small><h1>MT<b>BLANC</b>-VCMM</h1><div class="sub">VERBIER · 4 VALLÉES · CHAMONIX · MEGÈVE · CORRIDOR ALPIN</div></div>',unsafe_allow_html=True)
-page=st.radio('Navigation',['❄️ Neige à venir','🗺️ Carte neige / pluie','🏔️ Par station','📷 Webcams & sécurité'],horizontal=True,label_visibility='collapsed')
+page=st.radio('Navigation',['❄️ Neige à venir','🗺️ Carte neige / pluie','🏔️ Par station','🚨 Pisteurs & secours','📷 Webcams & bulletins'],horizontal=True,label_visibility='collapsed')
 
 if page=='❄️ Neige à venir':
     st.markdown('<div class="section">OÙ ET QUAND VA-T-IL NEIGER ?</div>',unsafe_allow_html=True)
@@ -203,7 +203,7 @@ elif page=='🏔️ Par station':
     st.caption(f'Altitude demandée : {alt} m · Altitude du modèle renvoyée : {fmt(elevation," m")}. Le pas de 50 m correspond à un ajustement vertical du modèle, pas à une mesure tous les 50 m.')
     st.markdown('<div class="warning">La présence de neige fraîche ne garantit pas un terrain skiable ni sûr. Vérifie le bulletin avalanche, le vent, la visibilité et les observations locales avant toute sortie hors-piste.</div>',unsafe_allow_html=True)
 
-else:
+elif page=='📷 Webcams & bulletins':
     st.markdown('<div class="section">WEBCAMS ET CONDITIONS OFFICIELLES</div>',unsafe_allow_html=True)
     st.caption('Liens lisibles vers les sites des stations et les bulletins officiels. Les webcams ne sont pas intégrées sans autorisation du fournisseur.')
     links=[('Webcams Verbier 4 Vallées','https://verbier4vallees.ch/'),('Webcams Chamonix','https://www.chamonix.com/'),('Webcams Megève','https://www.megeve-tourisme.fr/'),('Webcams Les Houches','https://www.chamonix.com/'),('Webcams Nendaz','https://www.nendaz.ch/'),('Webcams Saint-Gervais','https://www.saintgervais.com/'),('Bulletin avalanche SLF (Suisse)','https://www.slf.ch/fr/bulletin-davalanches-et-situation-nivologique/'),('Météo-France Montagne','https://meteofrance.com/meteo-montagne'),('MétéoSuisse','https://www.meteosuisse.admin.ch/'),('Avalanches Vallée d’Aoste','https://bollettinovalanghe.regione.vda.it/')]
@@ -211,5 +211,68 @@ else:
         st.link_button('↗ '+label,url,use_container_width=True)
     st.markdown('<div class="warning">MTBLANC-VCMM est un outil de préparation freeride, pas un service de sécurité certifié. Les bulletins officiels d’avalanches et les consignes locales font autorité.</div>',unsafe_allow_html=True)
 
+else:
+    st.markdown('<div class="section">BRIEFING MÉTÉO — PISTEURS & SECOURISTES</div>', unsafe_allow_html=True)
+    st.markdown('<div class="note">Synthèse prévisionnelle pour préparer une vacation ou une intervention. Ce tableau ne suit pas les équipes, ne déclenche aucune alerte et ne remplace pas les procédures opérationnelles.</div>',unsafe_allow_html=True)
+    area=st.selectbox('Secteur de travail',['4 Vallées','Chamonix','Megève','Entre les massifs'],key='ops_area')
+    candidates=selected_names(area)
+    location=st.selectbox('Point de référence',candidates,key='ops_location')
+    alt=st.slider('Altitude de travail (m)',500,4000,min(4000,max(500,int(round(POINTS[location][2]/50)*50))),50,key='ops_alt')
+    horizon=st.segmented_control('Fenêtre de prévision',['6 h','12 h','24 h','48 h'],default='12 h',key='ops_horizon')
+    hours=int(horizon.split()[0])
+    try:
+        df,_,model_alt=forecast(location,alt)
+        rows=upcoming(df,hours)
+        if rows.empty:
+            st.warning('Pas de prévisions disponibles pour cette période.')
+        else:
+            first=rows.iloc[0]
+            peak_gust=rows['wind_gusts_10m'].max()
+            max_rain=rows['rain'].sum(min_count=1)
+            total_snow=rows['snowfall'].sum(min_count=1)
+            low_freeze=rows['freezing_level_height'].min()
+            high_freeze=rows['freezing_level_height'].max()
+            coldest=rows['temperature_2m'].min()
+            warmest=rows['temperature_2m'].max()
+            st.caption(f'Prévision à {location} · altitude demandée {alt} m · données horaires du {rows.iloc[0].time:%d/%m %H:%M} au {rows.iloc[-1].time:%d/%m %H:%M} (heure suisse).')
+            c1,c2=st.columns(2)
+            c1.metric('Rafales maximales',fmt(peak_gust,' km/h'))
+            c2.metric('Neige prévue',fmt(total_snow,' cm',1))
+            c3,c4=st.columns(2)
+            c3.metric('Pluie prévue',fmt(max_rain,' mm',1))
+            c4.metric('Température min. / max.',f'{fmt(coldest," °C",1)} / {fmt(warmest," °C",1)}')
+            st.markdown('<div class="section">PHÉNOMÈNES À SURVEILLER</div>',unsafe_allow_html=True)
+            signals=[]
+            if pd.notna(peak_gust) and peak_gust>=70:
+                signals.append(('🔴','Rafales fortes prévues','Transport de neige, visibilité et exploitation des remontées à examiner avec les observations terrain.'))
+            elif pd.notna(peak_gust) and peak_gust>=40:
+                signals.append(('🟠','Rafales notables prévues','Vérifier l’exposition des crêtes et les observations de vent.'))
+            if pd.notna(total_snow) and total_snow>=15:
+                signals.append(('🟠','Chute de neige significative prévue','Surveiller l’accumulation, les accès et le transport de neige ; consulter le bulletin d’avalanches.'))
+            elif pd.notna(total_snow) and total_snow>=3:
+                signals.append(('🔵','Neige attendue','Anticiper les changements de visibilité et d’adhérence.'))
+            if pd.notna(max_rain) and max_rain>=3:
+                signals.append(('🟠','Pluie prévue','Surveiller le regel ultérieur et l’évolution des surfaces.'))
+            if pd.notna(low_freeze) and pd.notna(high_freeze) and low_freeze<=alt<=high_freeze:
+                signals.append(('🟠','Isotherme 0 °C traversant l’altitude de travail','Possibilité de transition pluie/neige et de regel selon les conditions locales.'))
+            if not signals:
+                st.info('Aucun des seuils indicatifs configurés n’est atteint dans ce modèle. Cela ne signifie pas absence de danger.')
+            for symbol,heading,detail in signals:
+                st.markdown(f'<div class="snowcard"><div class="place">{symbol} {html.escape(heading)}</div><div class="detail">{html.escape(detail)}</div></div>',unsafe_allow_html=True)
+            st.caption('Seuils d’affichage indicatifs, non officiels et non adaptés à une décision de fermeture ou de secours. Les phénomènes non modélisés peuvent rester dangereux.')
+            st.markdown('<div class="section">ÉVOLUTION HORAIRE</div>',unsafe_allow_html=True)
+            table=rows[['time','temperature_2m','wind_gusts_10m','snowfall','rain','freezing_level_height']].copy()
+            table.columns=['Heure','Temp. °C','Rafales km/h','Neige cm/h','Pluie mm/h','Iso 0 °C m']
+            table['Heure']=table['Heure'].dt.strftime('%d/%m %H:%M')
+            st.dataframe(table,hide_index=True,use_container_width=True,height=260)
+            st.download_button('↓ Exporter ce briefing (CSV)',table.to_csv(index=False).encode('utf-8-sig'),file_name='mtblanc_vcmm_briefing.csv',mime='text/csv',use_container_width=True)
+            st.caption(f'Altitude du modèle renvoyée : {fmt(model_alt," m")}. Une altitude demandée par pas de 50 m ne correspond pas à une mesure physique tous les 50 m.')
+    except Exception as exc:
+        st.error('Impossible de charger le briefing pour le moment. Réessaie plus tard.')
+    st.markdown('<div class="section">BULLETINS ET OBSERVATIONS OFFICIELS</div>',unsafe_allow_html=True)
+    for title,url in [('Bulletin d’avalanches SLF — Suisse','https://www.slf.ch/fr/bulletin-davalanches-et-situation-nivologique/'),('Météo-France — montagne','https://meteofrance.com/meteo-montagne'),('MétéoSuisse — observations et alertes','https://www.meteosuisse.admin.ch/'),('Vallée d’Aoste — avalanches','https://bollettinovalanghe.regione.vda.it/')]:
+        st.link_button('↗ '+title,url,use_container_width=True)
+    st.markdown('<div class="warning">IMPORTANT : les risques d’avalanches, la stabilité du manteau neigeux, la visibilité et les fermetures ne sont pas déterminés par ces seuils météo. Vérifier les bulletins datés, les mesures locales et les procédures du service de pistes avant toute décision.</div>',unsafe_allow_html=True)
+
 st.divider()
-st.caption('MTBLANC-VCMM V10 · Prévisions : Open-Meteo · Carte : OpenStreetMap / OpenTopoMap · Radar optionnel : RainViewer. Les modèles ne sont pas actualisés toutes les minutes. Les prévisions peuvent être erronées en haute montagne.')
+st.caption('MTBLANC-VCMM V11 · Prévisions : Open-Meteo · Carte : OpenStreetMap / OpenTopoMap · Radar optionnel : RainViewer. Les modèles ne sont pas actualisés toutes les minutes. Les prévisions peuvent être erronées en haute montagne.')

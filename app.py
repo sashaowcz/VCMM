@@ -53,6 +53,39 @@ html,body,.stApp,[data-testid="stAppViewContainer"]{background:var(--bg)!importa
 [data-testid="stMetric"] *{color:white!important;-webkit-text-fill-color:white!important}
 [data-testid="stMetricValue"]{font-size:1.6rem!important}
 [data-testid="stDataFrame"]{border-radius:0!important}
+
+/* V12: contrast repair for Streamlit controls on iOS Safari and desktop */
+.stApp [data-testid="stAlert"],.stApp [data-testid="stAlert"] > div{background:#192b22!important;color:#fff!important}
+.stApp [data-testid="stAlert"] p,.stApp [data-testid="stAlert"] span,.stApp [data-testid="stAlert"] div{color:#fff!important;-webkit-text-fill-color:#fff!important}
+.stApp [data-testid="stAlert"] svg{fill:none!important;color:#baff45!important}
+/* Segmented controls are rendered as light buttons by default in some versions */
+.stApp [data-testid="stSegmentedControl"] button,
+.stApp [data-testid="stSegmentedControl"] [role="radio"],
+.stApp [data-testid="stSegmentedControl"] [role="button"],
+.stApp [data-baseweb="button-group"] button{background:#1d2a22!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:1px solid #819787!important;border-radius:0!important}
+.stApp [data-testid="stSegmentedControl"] button *,
+.stApp [data-testid="stSegmentedControl"] [role="radio"] *,
+.stApp [data-baseweb="button-group"] button *{color:#fff!important;-webkit-text-fill-color:#fff!important}
+.stApp [data-testid="stSegmentedControl"] button[aria-checked="true"],
+.stApp [data-testid="stSegmentedControl"] button[aria-pressed="true"],
+.stApp [data-testid="stSegmentedControl"] [role="radio"][aria-checked="true"],
+.stApp [data-baseweb="button-group"] button[aria-pressed="true"]{background:#baff45!important;color:#0a130b!important;-webkit-text-fill-color:#0a130b!important;border-color:#baff45!important}
+.stApp [data-testid="stSegmentedControl"] button[aria-checked="true"] *,
+.stApp [data-testid="stSegmentedControl"] button[aria-pressed="true"] *,
+.stApp [data-testid="stSegmentedControl"] [role="radio"][aria-checked="true"] *,
+.stApp [data-baseweb="button-group"] button[aria-pressed="true"] *{color:#0a130b!important;-webkit-text-fill-color:#0a130b!important}
+/* Dropdowns: retain dark menu and high contrast */
+.stApp [data-baseweb="select"] > div{background:#18251d!important;color:#fff!important}
+.stApp [data-baseweb="select"] [data-testid="stMarkdownContainer"] *,
+.stApp [data-baseweb="select"] svg{color:#fff!important;fill:#fff!important}
+/* Native link buttons, including text nested in markdown */
+.stApp [data-testid="stLinkButton"] a,.stApp [data-testid="stLinkButton"] a *,
+.stApp [data-testid="stDownloadButton"] button,.stApp [data-testid="stDownloadButton"] button *,
+.stApp [data-testid="stButton"] button,.stApp [data-testid="stButton"] button *{color:#fff!important;-webkit-text-fill-color:#fff!important}
+/* Keep table text readable on its light background */
+.stApp [data-testid="stDataFrame"]{color:#101510!important}
+.stApp [data-testid="stDataFrame"] iframe{color-scheme:light}
+
 header{visibility:visible}
 .brand{background:#162019;border-left:6px solid var(--lime);padding:15px 18px;margin-bottom:15px}
 .brand small{color:var(--lime);letter-spacing:.11em;font-weight:850;font-size:.75rem}
